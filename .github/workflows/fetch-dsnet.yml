@@ -9,12 +9,21 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Install gdown
-        run: pip install --quiet gdown
-
-      - name: Download dataset
         run: |
-          gdown --fuzzy "https://drive.google.com/file/d/14RKHsmBdTRNrecDXCDgprgmaC6wRrGyL/view" -O dsnet.zip
-          ls -lh dsnet.zip
+          python -m pip install --upgrade gdown
+          python -m gdown --version
+
+      - name: Download with retry
+        shell: bash
+        run: |
+          set -x
+          for i in 1 2 3 4 5; do
+            python -m gdown --id 14RKHsmBdTRNrecDXCDgprgmaC6wRrGyL -O dsnet.zip && break
+            echo "attempt $i failed, sleep 60s"
+            sleep 60
+          done
+          ls -lh
+          test -s dsnet.zip
 
       - name: Split if larger than 1.8GB
         run: |
