@@ -1,0 +1,35 @@
+name: fetch-dsnet-dataset
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Install gdown
+        run: pip install --quiet gdown
+
+      - name: Download dataset
+        run: |
+          gdown --fuzzy "https://drive.google.com/file/d/14RKHsmBdTRNrecDXCDgprgmaC6wRrGyL/view" -O dsnet.zip
+          ls -lh dsnet.zip
+
+      - name: Split if larger than 1.8GB
+        run: |
+          if [ "$(stat -c%s dsnet.zip)" -gt 1932735283 ]; then
+            split -b 1800M -d dsnet.zip dsnet-part-
+            rm -f dsnet.zip
+          fi
+          ls -lh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsnet-dataset
+          path: |
+            dsnet.zip
+            dsnet-part-*
+          if-no-files-found: error
+          compression-level: 0
