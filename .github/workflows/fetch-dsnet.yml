@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          if head -c 3 download.bin | grep -q HDF; then
+          if head -c 4 download.bin | grep -q HDF || file download.bin | grep -q "Hierarchical Data Format"; then
             mv download.bin pointcloud.h5
             echo "== HDF5 =="
             python -c "import h5py; f=h5py.File('pointcloud.h5','r'); ks=list(f)[:5]; print('samples:',len(f)); print('keys:',ks); k=ks[0]; print('points:',f[k]['points'].shape); print('labels:',f[k]['per_point_labels'].shape)"
