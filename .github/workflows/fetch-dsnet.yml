@@ -11,29 +11,52 @@ jobs:
       - name: Install gdown
         run: python -m pip install --upgrade gdown
 
-      - name: Download with retry
+      - name: Download
         shell: bash
         run: |
           set -x
-          for i in 1 2 3 4 5; do
-            python -m gdown "https://drive.google.com/uc?id=14RKHsmBdTRNrecDXCDgprgmaC6wRrGyL" -O dsnet.zip && break
-            echo "attempt $i failed"; sleep 60
-          done
-          ls -lh dsnet.zip
-          file dsnet.zip || true
-          test -s dsnet.zip || { echo "下载为空"; exit 1; }
+          python -m gdown "https://drive.google.com/uc?id=14RKHsmBdTRNrecDXCDgprgmaC6wRrGyL" -O download.bin
+          ls -lh download.bin
+          file download.bin || true
 
-      - name: Verify zip
+      - name: Detect format and verify
+        shell: bash
         run: |
-          unzip -t dsnet.zip >/dev/null 2>&1 && echo "zip OK" || {
-            echo "=== 不是有效 zip，前 600 字节 ==="; head -c 600 dsnet.zip; exit 1;
-          }
+          set -e
+          python -m pip install --quiet h5py
+          if head -c 3 download.bin | grep -q HDF; then
+            mv download.bin pointcloud.h5
+            echo "== 识别为 HDF5 =="
+            python - <<'PY'
+import h5py
+f = h5py.File("pointcloud.h5", "r")
+keys = list(f)[:5]
+print("样本数:", len(f))
+print("前 5 个 key:", keys)
+k = keys[0]
+print("points:", f[k]["points"].shape)
+print("labels:", f[k]["per_point_labels"].shape)
+print("damage:", f[k]["damage"][()])
+PY
+          elif unzip -t download.bin >/dev/null 2>&1; then
+            mv download.bin dsnet.zip
+            echo "== 识别为 zip =="
+          else
+            echo "== 未知格式，前 300 字节 =="
+            head -c 300 download.bin
+            exit 1
+          fi
+          ls -lh
 
       - name: Split if larger than 1.8GB
+        shell: bash
         run: |
-          if [ "$(stat -c%s dsnet.zip)" -gt 1932735283 ]; then
-            split -b 1800M -d dsnet.zip dsnet-part-
-            rm -f dsnet.zip
+          F=""
+          [ -f pointcloud.h5 ] && F=pointcloud.h5
+          [ -f dsnet.zip ] && F=dsnet.zip
+          if [ -n "$F" ] && [ "$(stat -c%s "$F")" -gt 1932735283 ]; then
+            split -b 1800M -d "$F" "${F}.part-"
+            rm -f "$F"
           fi
           ls -lh
 
@@ -42,7 +65,8 @@ jobs:
         with:
           name: dsnet-dataset
           path: |
+            pointcloud.h5
             dsnet.zip
-            dsnet-part-*
+            *.part-*
           if-no-files-found: error
           compression-level: 0
